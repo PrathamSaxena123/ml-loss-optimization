@@ -18,6 +18,22 @@ for Logistic Regression optimization.
 
 ---
 
+## 📸 Project Preview
+
+### 🏠 Home Page
+![Home](assets/home.png)
+
+### 📊 Training Visualization
+![Training](assets/train(1).png)
+
+### 🔲 Confusion Matrix Comparison
+![Training](assets/train(2).png)
+
+### 🔮 Prediction Page
+![Prediction](assets/predict.png)
+
+---
+
 ## 🛠 Tech Stack
 
 - Python (Flask)
