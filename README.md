@@ -7,7 +7,7 @@ A visually interactive project which is comparing:
 
 for Logistic Regression optimization.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://ml-loss-optimization-app.onrender.com)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://ml-loss-optimization-app.onrender.com) 👈 Click Here!
 
 ---
 
