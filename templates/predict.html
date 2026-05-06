@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predict | ML Loss Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="navbar">
+    <span class="nav-brand">ML<span class="accent">∇</span>Optimizer</span>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/train">Train</a></li>
+      <li><a href="/predict" class="active">Predict</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-header">
+    <h1>Prediction Interface</h1>
+    <p>Enter feature values to classify a tumor as Benign or Malignant.</p>
+  </div>
+
+  <div class="predict-layout">
+    <div class="predict-form-panel">
+      <div class="method-selector">
+        <label class="method-opt active" id="opt-gd">
+          <input type="radio" name="method" value="gd" checked onchange="setMethod(this)">
+          Gradient Descent
+        </label>
+        <label class="method-opt" id="opt-newton">
+          <input type="radio" name="method" value="newton" onchange="setMethod(this)">
+          Newton's Method
+        </label>
+      </div>
+
+      <div class="predict-tip">
+        <span class="tip-icon">ℹ</span>
+        Use sample values below or enter custom measurements.
+        All 30 features from the Wisconsin Breast Cancer dataset are required.
+      </div>
+
+      <div class="feature-actions">
+        <button class="btn btn-outline btn-sm" onclick="loadSample('benign')">Load Benign Sample</button>
+        <button class="btn btn-outline btn-sm" onclick="loadSample('malignant')">Load Malignant Sample</button>
+        <button class="btn btn-outline btn-sm" onclick="clearForm()">Clear</button>
+      </div>
+
+      <div class="features-grid" id="features-grid">
+        <!-- Filled by JS -->
+      </div>
+
+      <button class="btn btn-primary btn-full" onclick="runPredict()" id="predict-btn">
+        Classify Tumor →
+      </button>
+    </div>
+
+    <div class="predict-result-panel">
+      <div id="result-placeholder" class="result-placeholder">
+        <div class="placeholder-icon">◎</div>
+        <p>Enter feature values and click<br><strong>Classify Tumor</strong> to see results.</p>
+      </div>
+
+      <div id="result-output" style="display:none">
+        <div id="result-card" class="result-card">
+          <div class="result-badge" id="result-label">—</div>
+          <div class="result-prob-bar">
+            <div class="prob-track">
+              <div class="prob-fill" id="prob-fill" style="width:0%"></div>
+            </div>
+            <div class="prob-labels">
+              <span class="gd-color">Benign</span>
+              <span id="prob-text">—</span>
+              <span class="nm-color">Malignant</span>
+            </div>
+          </div>
+          <div class="confidence-row">
+            <span class="conf-label">Confidence</span>
+            <span class="conf-val" id="conf-val">—</span>
+          </div>
+          <div class="result-meta" id="result-meta"></div>
+        </div>
+
+        <div class="result-explain">
+          <h4>How to interpret</h4>
+          <p>
+            The probability bar shows the model's confidence that this sample is Malignant.
+            Values above 50% → Malignant, below 50% → Benign.
+            This is for <strong>research and educational use only</strong> — not clinical diagnosis.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const featureNames = {{ feature_names | tojson }};
+
+    // Sample data (representative real values from the dataset)
+    const samples = {
+      benign: [13.54,14.36,87.46,566.3,0.09779,0.08129,0.06664,0.04781,0.1885,0.05766,
+               0.2699,0.7886,2.058,23.56,0.008462,0.0146,0.02387,0.01315,0.0198,0.0023,
+               15.11,19.26,99.7,711.2,0.144,0.1773,0.239,0.1288,0.2977,0.07259],
+      malignant: [20.57,17.77,132.9,1326.0,0.08474,0.07864,0.0869,0.07017,0.1812,0.05667,
+                  0.5435,0.7339,3.398,74.08,0.005225,0.01308,0.0186,0.0134,0.01389,0.003532,
+                  24.99,23.41,158.8,1956.0,0.1238,0.1866,0.2416,0.186,0.275,0.08902]
+    };
+
+    let currentMethod = 'gd';
+
+    function setMethod(el) {
+      currentMethod = el.value;
+      document.querySelectorAll('.method-opt').forEach(o => o.classList.remove('active'));
+      el.closest('.method-opt').classList.add('active');
+    }
+
+    function buildForm() {
+      const grid = document.getElementById('features-grid');
+      grid.innerHTML = featureNames.map((name, i) => `
+        <div class="feature-input-wrap">
+          <label class="feature-label" title="${name}">${name}</label>
+          <input type="number" id="f${i}" step="any" placeholder="0.00"
+                 class="feature-input" aria-label="${name}">
+        </div>
+      `).join('');
+    }
+
+    function loadSample(type) {
+      samples[type].forEach((val, i) => {
+        const el = document.getElementById('f' + i);
+        if (el) el.value = val;
+      });
+    }
+
+    function clearForm() {
+      featureNames.forEach((_, i) => {
+        const el = document.getElementById('f' + i);
+        if (el) el.value = '';
+      });
+      document.getElementById('result-placeholder').style.display = 'flex';
+      document.getElementById('result-output').style.display = 'none';
+    }
+
+    async function runPredict() {
+      const features = featureNames.map((_, i) => {
+        const val = parseFloat(document.getElementById('f' + i).value);
+        return isNaN(val) ? 0 : val;
+      });
+
+      document.getElementById('predict-btn').disabled = true;
+      document.getElementById('predict-btn').textContent = 'Classifying...';
+
+      try {
+        const res = await fetch('/api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: currentMethod, features })
+        });
+        const data = await res.json();
+        showResult(data);
+      } catch (e) {
+        alert('Prediction error: ' + e.message);
+      } finally {
+        document.getElementById('predict-btn').disabled = false;
+        document.getElementById('predict-btn').textContent = 'Classify Tumor →';
+      }
+    }
+
+    function showResult(data) {
+      const isMalignant = data.prediction === 1;
+      const probPct = (data.probability * 100).toFixed(1);
+
+      document.getElementById('result-label').textContent = data.label;
+      document.getElementById('result-label').className = 'result-badge ' + (isMalignant ? 'badge-malignant' : 'badge-benign');
+      document.getElementById('prob-fill').style.width = probPct + '%';
+      document.getElementById('prob-fill').className = 'prob-fill ' + (isMalignant ? 'fill-malignant' : 'fill-benign');
+      document.getElementById('prob-text').textContent = probPct + '%';
+      document.getElementById('conf-val').textContent = data.confidence + '%';
+      document.getElementById('result-meta').textContent =
+        `Method: ${currentMethod === 'gd' ? 'Gradient Descent' : "Newton's Method"} · P(Malignant) = ${probPct}%`;
+
+      document.getElementById('result-placeholder').style.display = 'none';
+      document.getElementById('result-output').style.display = 'block';
+    }
+
+    buildForm();
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ML Loss Optimization</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Nav -->
+  <nav class="navbar">
+    <span class="nav-brand">ML<span class="accent">∇</span>Optimizer</span>
+    <ul class="nav-links">
+      <li><a href="/" class="active">Home</a></li>
+      <li><a href="/train">Train</a></li>
+      <li><a href="/predict">Predict</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">Breast Cancer Wisconsin Dataset · Binary Classification</div>
+    <h1 class="hero-title">Loss Optimization<br><span class="accent">Gradient Descent vs Newton</span></h1>
+    <p class="hero-sub">
+      A comparative study of first-order and second-order optimization for logistic regression.
+      Visualize convergence, compare metrics, and make predictions interactively.
+    </p>
+    <div class="hero-actions">
+      <a href="/train" class="btn btn-primary">Compare Optimizers →</a>
+      <a href="/predict" class="btn btn-outline">Try Prediction</a>
+    </div>
+  </section>
+
+  <!-- Dataset Stats -->
+  <section class="stats-section">
+    <div class="stat-card">
+      <span class="stat-num" data-target="569">0</span>
+      <span class="stat-label">Total Samples</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" data-target="30">0</span>
+      <span class="stat-label">Features</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" data-target="2">0</span>
+      <span class="stat-label">Classes</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num">~97%</span>
+      <span class="stat-label">Best Accuracy</span>
+    </div>
+  </section>
+
+  <!-- Method Cards -->
+  <section class="methods-section">
+    <h2 class="section-title">Optimization Methods</h2>
+    <div class="method-grid">
+      <div class="method-card">
+        <div class="method-icon gd-icon">∂</div>
+        <h3>Gradient Descent</h3>
+        <p class="method-desc">
+          First-order iterative method. Updates weights proportional to the negative gradient of the loss surface.
+          Convergence depends on learning rate α.
+        </p>
+        <div class="method-formula">w ← w − α · ∇L(w)</div>
+        <ul class="method-props">
+          <li>✓ Scalable to large datasets</li>
+          <li>✓ Tunable learning rate</li>
+          <li>✗ Slower convergence</li>
+          <li>✗ Sensitive to α choice</li>
+        </ul>
+        <a href="/train?method=gd" class="btn btn-method">Run GD →</a>
+      </div>
+
+      <div class="method-card featured">
+        <div class="method-icon nm-icon">H</div>
+        <h3>Newton's Method</h3>
+        <p class="method-desc">
+          Second-order method using the Hessian matrix. Achieves quadratic convergence by incorporating curvature
+          information — typically converges in &lt;20 iterations.
+        </p>
+        <div class="method-formula">w ← w − H⁻¹ · ∇L(w)</div>
+        <ul class="method-props">
+          <li>✓ Quadratic convergence</li>
+          <li>✓ No learning rate to tune</li>
+          <li>✗ O(d²) Hessian cost</li>
+          <li>✗ Requires invertible H</li>
+        </ul>
+        <a href="/train?method=newton" class="btn btn-method">Run Newton →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section class="tech-section">
+    <h2 class="section-title">Built With</h2>
+    <div class="tech-grid">
+      <span class="tech-badge">Python 3.x</span>
+      <span class="tech-badge">NumPy</span>
+      <span class="tech-badge">scikit-learn</span>
+      <span class="tech-badge">Flask</span>
+      <span class="tech-badge">Chart.js</span>
+      <span class="tech-badge">Logistic Regression</span>
+      <span class="tech-badge">L2 Regularization</span>
+      <span class="tech-badge">Hessian</span>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>ML Loss Optimization · Breast Cancer Dataset ·
+      <a href="https://github.com/yourusername/ml-loss-optimizer" target="_blank">GitHub →</a>
+    </p>
+  </footer>
+
+  <script>
+    // Animate stat counters on scroll
+    const counters = document.querySelectorAll('.stat-num[data-target]');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        const target = +el.dataset.target;
+        const duration = 1200;
+        const start = performance.now();
+        function step(now) {
+          const progress = Math.min((now - start) / duration, 1);
+          el.textContent = Math.floor(progress * target);
+          if (progress < 1) requestAnimationFrame(step);
+          else el.textContent = target;
+        }
+        requestAnimationFrame(step);
+        observer.unobserve(el);
+      });
+    }, { threshold: 0.5 });
+    counters.forEach(c => observer.observe(c));
+  </script>
+</body>
+</html>

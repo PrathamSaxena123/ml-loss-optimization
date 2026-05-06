@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Train | ML Loss Optimizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <nav class="navbar">
+    <span class="nav-brand">ML<span class="accent">∇</span>Optimizer</span>
+    <ul class="nav-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/train" class="active">Train</a></li>
+      <li><a href="/predict">Predict</a></li>
+    </ul>
+  </nav>
+
+  <div class="page-header">
+    <h1>Training Dashboard</h1>
+    <p>Configure hyperparameters, run both optimizers, and compare convergence.</p>
+  </div>
+
+  <div class="train-layout">
+    <!-- Controls Panel -->
+    <aside class="controls-panel">
+      <h3 class="panel-title">Hyperparameters</h3>
+
+      <div class="control-group">
+        <label>Max Iterations</label>
+        <div class="range-row">
+          <input type="range" id="max-iter" min="10" max="1000" value="300" step="10"
+                 oninput="document.getElementById('max-iter-val').textContent = this.value">
+          <span id="max-iter-val">300</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Learning Rate (GD only)</label>
+        <div class="range-row">
+          <input type="range" id="lr" min="0.001" max="1.0" value="0.1" step="0.001"
+                 oninput="document.getElementById('lr-val').textContent = parseFloat(this.value).toFixed(3)">
+          <span id="lr-val">0.100</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>L2 Regularization (λ)</label>
+        <div class="range-row">
+          <input type="range" id="lam" min="0" max="1.0" value="0" step="0.01"
+                 oninput="document.getElementById('lam-val').textContent = parseFloat(this.value).toFixed(2)">
+          <span id="lam-val">0.00</span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" onclick="runComparison()" id="run-btn">
+        ▶ Run Both Optimizers
+      </button>
+      <button class="btn btn-outline btn-full" style="margin-top:8px" onclick="resetCharts()">
+        ↺ Reset
+      </button>
+
+      <!-- Result Summary Cards -->
+      <div id="summary" class="summary-cards" style="display:none">
+        <h3 class="panel-title" style="margin-top:24px">Results</h3>
+        <div class="mini-card">
+          <span class="mini-label">GD Accuracy</span>
+          <span class="mini-val gd-color" id="gd-acc">—</span>
+        </div>
+        <div class="mini-card">
+          <span class="mini-label">GD Iterations</span>
+          <span class="mini-val gd-color" id="gd-iters">—</span>
+        </div>
+        <div class="mini-card">
+          <span class="mini-label">NM Accuracy</span>
+          <span class="mini-val nm-color" id="nm-acc">—</span>
+        </div>
+        <div class="mini-card">
+          <span class="mini-label">NM Iterations</span>
+          <span class="mini-val nm-color" id="nm-iters">—</span>
+        </div>
+        <div class="mini-card">
+          <span class="mini-label">GD AUC-ROC</span>
+          <span class="mini-val gd-color" id="gd-auc">—</span>
+        </div>
+        <div class="mini-card">
+          <span class="mini-label">NM AUC-ROC</span>
+          <span class="mini-val nm-color" id="nm-auc">—</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Charts Panel -->
+    <main class="charts-panel">
+      <div id="loading" class="loading-msg" style="display:none">
+        <div class="spinner"></div>
+        <span>Training models...</span>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h4>Loss Convergence</h4>
+            <span class="chart-sub">Binary cross-entropy vs iterations</span>
+          </div>
+          <canvas id="lossChart" height="220"></canvas>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h4>Training Accuracy</h4>
+            <span class="chart-sub">Classification accuracy vs iterations</span>
+          </div>
+          <canvas id="accChart" height="220"></canvas>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-card-header">
+            <h4>Confusion Matrix Comparison</h4>
+            <span class="chart-sub">Test set predictions</span>
+          </div>
+          <div class="cm-row">
+            <div>
+              <p class="cm-label gd-color">Gradient Descent</p>
+              <table id="cm-gd" class="cm-table"></table>
+            </div>
+            <div>
+              <p class="cm-label nm-color">Newton's Method</p>
+              <table id="cm-nm" class="cm-table"></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='charts.js') }}"></script>
+  <script>
+    let lossChart, accChart;
+
+    function initCharts() {
+      const commonOpts = {
+        responsive: true,
+        animation: { duration: 600 },
+        plugins: {
+          legend: { labels: { color: '#a0a0b0', font: { family: 'Sora' } } },
+          tooltip: { mode: 'index', intersect: false }
+        },
+        scales: {
+          x: { ticks: { color: '#a0a0b0' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+          y: { ticks: { color: '#a0a0b0' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      };
+
+      lossChart = new Chart(document.getElementById('lossChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [] },
+        options: { ...commonOpts, plugins: { ...commonOpts.plugins,
+          title: { display: false }
+        }}
+      });
+
+      accChart = new Chart(document.getElementById('accChart'), {
+        type: 'line',
+        data: { labels: [], datasets: [] },
+        options: { ...commonOpts }
+      });
+    }
+
+    function buildLabels(n) {
+      return Array.from({ length: n }, (_, i) => i + 1);
+    }
+
+    async function runComparison() {
+      const maxIter = +document.getElementById('max-iter').value;
+      const lr = +document.getElementById('lr').value;
+      const lam = +document.getElementById('lam').value;
+
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('run-btn').disabled = true;
+
+      try {
+        // Run both in parallel
+        const [gdRes, nmRes] = await Promise.all([
+          fetch('/api/train', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: 'gd', max_iter: maxIter, learning_rate: lr, lam })
+          }).then(r => r.json()),
+          fetch('/api/train', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: 'newton', max_iter: Math.min(maxIter, 100), lam: Math.max(lam, 1e-4) })
+          }).then(r => r.json()),
+        ]);
+
+        updateCharts(gdRes, nmRes);
+        updateSummary(gdRes, nmRes);
+        updateConfusionMatrix('cm-gd', gdRes.evaluation.confusion_matrix);
+        updateConfusionMatrix('cm-nm', nmRes.evaluation.confusion_matrix);
+
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('run-btn').disabled = false;
+      }
+    }
+
+    function updateCharts(gd, nm) {
+      const gdLoss = gd.training.losses;
+      const nmLoss = nm.training.losses;
+      const maxLen = Math.max(gdLoss.length, nmLoss.length);
+
+      lossChart.data.labels = buildLabels(maxLen);
+      lossChart.data.datasets = [
+        { label: 'Gradient Descent', data: gdLoss,
+          borderColor: '#6C8EF5', backgroundColor: 'rgba(108,142,245,0.1)',
+          tension: 0.4, pointRadius: 0, borderWidth: 2 },
+        { label: "Newton's Method", data: nmLoss,
+          borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,0.1)',
+          tension: 0.4, pointRadius: 0, borderWidth: 2 },
+      ];
+      lossChart.update();
+
+      accChart.data.labels = buildLabels(maxLen);
+      accChart.data.datasets = [
+        { label: 'Gradient Descent', data: gd.training.accuracies,
+          borderColor: '#6C8EF5', backgroundColor: 'rgba(108,142,245,0.1)',
+          tension: 0.4, pointRadius: 0, borderWidth: 2 },
+        { label: "Newton's Method", data: nm.training.accuracies,
+          borderColor: '#F5A623', backgroundColor: 'rgba(245,166,35,0.1)',
+          tension: 0.4, pointRadius: 0, borderWidth: 2 },
+      ];
+      accChart.update();
+    }
+
+    function updateSummary(gd, nm) {
+      document.getElementById('gd-acc').textContent = (gd.evaluation.accuracy * 100).toFixed(1) + '%';
+      document.getElementById('gd-iters').textContent = gd.training.iterations;
+      document.getElementById('gd-auc').textContent = gd.evaluation.auc_roc;
+      document.getElementById('nm-acc').textContent = (nm.evaluation.accuracy * 100).toFixed(1) + '%';
+      document.getElementById('nm-iters').textContent = nm.training.iterations;
+      document.getElementById('nm-auc').textContent = nm.evaluation.auc_roc;
+      document.getElementById('summary').style.display = 'block';
+    }
+
+    function updateConfusionMatrix(tableId, cm) {
+      const labels = ['Benign', 'Malignant'];
+      const table = document.getElementById(tableId);
+      table.innerHTML = '';
+      // Header row
+      const hdr = table.insertRow();
+      hdr.insertCell().textContent = '';
+      labels.forEach(l => { const c = hdr.insertCell(); c.textContent = 'Pred: ' + l; c.className = 'cm-head'; });
+      // Data rows
+      cm.forEach((row, i) => {
+        const tr = table.insertRow();
+        const th = tr.insertCell(); th.textContent = 'Act: ' + labels[i]; th.className = 'cm-head';
+        row.forEach((val, j) => {
+          const td = tr.insertCell();
+          td.textContent = val;
+          td.className = i === j ? 'cm-correct' : 'cm-wrong';
+        });
+      });
+    }
+
+    function resetCharts() {
+      lossChart.data.labels = [];
+      lossChart.data.datasets = [];
+      lossChart.update();
+      accChart.data.labels = [];
+      accChart.data.datasets = [];
+      accChart.update();
+      document.getElementById('summary').style.display = 'none';
+      ['cm-gd', 'cm-nm'].forEach(id => document.getElementById(id).innerHTML = '');
+    }
+
+    initCharts();
+
+    // Auto-run if method param in URL
+    const params = new URLSearchParams(location.search);
+    if (params.get('method')) runComparison();
+  </script>
+</body>
+</html>
