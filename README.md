@@ -2,8 +2,8 @@
 
 A visually interactive project which is comparing:
 
-- Gradient Descent (1st Order)
-- Newton's Method (2nd Order)
+- Gradient Descent (1st Order).
+- Newton's Method (2nd Order).
 
 for Logistic Regression optimization.
 
